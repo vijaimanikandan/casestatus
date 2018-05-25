@@ -31,13 +31,14 @@ getStatus = async (caseNum) => {
 stream.write("{");
 main = async () => {
     for (let i = 1; i <= (endNum - startNum); i++) {
-        await sleep(1000);
+        await sleep(100);
         caseNum = prefix + (startNum + i - 1);
         console.log(`Processing ${caseNum}`);
         await getStatus(caseNum);
     };
     stream.write("}");
     stream.end();
+    console.log("Finished");
 };
 
 http.createServer(function (request, response) {
