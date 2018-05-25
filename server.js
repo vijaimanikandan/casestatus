@@ -1,5 +1,6 @@
 const rus = require('req-uscis-status');
 const fs = require('fs');
+const http = require('http');
 
 var caseNumList = [];
 var stream = fs.createWriteStream("./caseList.txt", { flags: 'a' });
@@ -40,3 +41,6 @@ main = async () => {
 };
 
 main();
+
+http.createServer(function (request, response) {
+}).listen(process.env.PORT || 5000);
