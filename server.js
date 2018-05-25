@@ -40,7 +40,6 @@ main = async () => {
     stream.end();
 };
 
-main();
-
 http.createServer(function (request, response) {
 }).listen(process.env.PORT || 5000);
+main();
