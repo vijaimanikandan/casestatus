@@ -41,6 +41,4 @@ main = async () => {
     console.log("Finished");
 };
 
-http.createServer(function (request, response) {
-}).listen(process.env.PORT || 5000);
 main();
