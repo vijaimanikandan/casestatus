@@ -1,44 +1,27 @@
-const rus = require('req-uscis-status');
 const fs = require('fs');
-const http = require('http');
+const express = require('express');
 
-var caseNumList = [];
-var stream = fs.createWriteStream("./caseList.txt", { flags: 'a' });
-var caseList = {};
-var prefix = "WAC18901";
-var startNum = 30988;
-var endNum = 59529;
+var app = express();
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
 
-getStatus = async (caseNum) => {
-    return new Promise((resolve, reject) => {
-        rus.getStatus(caseNum, (err, statusObject) => {
-            if (err) {
-                console.error(err);
-                reject();
-            }
-            caseList[caseNum] = statusObject;
-            console.log(caseList[caseNum]);
-            stream.write('"' + caseNum + '" : \n' + JSON.stringify(caseList[caseNum]) + ",\n");
-            resolve();
-        });
+app.get("/", (req, res) => {
+    var fileContent = fs.readFileSync("./caseList.txt", "utf8")
+    fileContent = fileContent.replace(/,\s*$/, "");
+    caseMap = JSON.parse(`{${fileContent}}`);
+
+    var caseList = Object.keys(caseMap).sort().map((element, index, array) => {
+        caseMap[element]["caseNum"] = element;
+        return caseMap[element];
     });
-};
 
-stream.write("{");
-main = async () => {
-    for (let i = 1; i <= (endNum - startNum); i++) {
-        await sleep(100);
-        caseNum = prefix + (startNum + i - 1);
-        console.log(`Processing ${caseNum}`);
-        await getStatus(caseNum);
-    };
-    stream.write("}");
-    stream.end();
-    console.log("Finished");
-};
+    var response = "<table><thead><tr><th>S No</th><th>Case Number</th><th>statusShortText</th><th>statusLongText</th></tr></thead><tbody>";
+    caseList.forEach((element, index, array) => {
+        response += `<tr><td>${index}</td><td>${element.caseNum}</td><td>${element.statusShortText.split(":")[1]}</td><td>${element.statusLongText}</td></tr>`
+    });
+    response += "</tbody></table>";
+    res.send(response);
+});
 
-main();
+app.listen(3000, () => {
+    console.log("Server started on port 3000");
+});
