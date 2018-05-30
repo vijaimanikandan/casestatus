@@ -1,25 +1,52 @@
-const fs = require('fs');
 const express = require('express');
-
 var app = express();
+const mongoose = require('mongoose');
 
+mongoose.Promise = global.Promise;
+mongoose.connect('mongodb://localhost/casestatus').then(
+    () => { console.log('DB Connected'); },
+    (err) => { console.log('DB Connection Error' + err); }
+);
+var caseModel = mongoose.model('Case',
+    new mongoose.Schema(
+        {
+            caseNumber: String,
+            errHtml: String,
+            statusShortHtml: String,
+            statusShortText: String,
+            statusLongHtml: String,
+            statusLongText: String
+        }
+    )
+);
 
 app.get("/", (req, res) => {
-    var fileContent = fs.readFileSync("./caseList.txt", "utf8")
-    fileContent = fileContent.replace(/,\s*$/, "");
-    caseMap = JSON.parse(`{${fileContent}}`);
-
-    var caseList = Object.keys(caseMap).sort().map((element, index, array) => {
-        caseMap[element]["caseNum"] = element;
-        return caseMap[element];
+    var response = `<html>
+    <head>
+    <title>Cases</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <body>
+    <div class="table-responsive">
+    <table class="table table-striped table-hover"><thead><tr><th>No</th><th>Case Number</th><th>Status</th><th>Description</th></tr></thead><tbody>`;
+    caseModel.find({}, function (err, cases) {
+        cases.sort((a, b) => {
+            return a.caseNumber.localeCompare(b.caseNumber);
+        });
+        cases
+        .filter((caseObj, index, array) => {
+            return (
+                caseObj['statusLongText'].includes("I-765") || caseObj['statusLongText'].includes("ordered your new card") ||
+                (caseObj['statusLongText'].includes("Card Was Delivered") && !(caseObj['statusLongText'].includes("March") || caseObj['statusLongText'].includes("April")))
+            );
+        })
+        .forEach(function (caseObj, index, array) {
+            response += `<tr><td>${index + 1}</td><td>${caseObj.caseNumber}</td><td>${(caseObj.statusShortText.split(":")[1]).trim()}</td><td>${caseObj.statusLongText}</td></tr>`
+        });
+        response += "</tbody></table></div></body></html>";
+        res.send(response);
     });
-
-    var response = "<table><thead><tr><th>S No</th><th>Case Number</th><th>statusShortText</th><th>statusLongText</th></tr></thead><tbody>";
-    caseList.forEach((element, index, array) => {
-        response += `<tr><td>${index}</td><td>${element.caseNum}</td><td>${element.statusShortText.split(":")[1]}</td><td>${element.statusLongText}</td></tr>`
-    });
-    response += "</tbody></table>";
-    res.send(response);
 });
 
 app.listen(3000, () => {

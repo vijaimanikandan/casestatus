@@ -1,16 +1,24 @@
 const rus = require('req-uscis-status');
-const fs = require('fs');
 const http = require('http');
+const mongoose = require('mongoose');
 
-var caseNumList = [];
-var stream = fs.createWriteStream("./caseList.txt", { flags: 'a' });
-var listStream = fs.createWriteStream("./processedCaseList.txt", { flags: 'a' });
-var caseList = {};
-var prefix = "WAC18901";
-// var startNum = 30988;
-// var endNum = 59529;
-var startNum = 30000;
-var endNum = 31000;
+mongoose.Promise = global.Promise;
+mongoose.connect('mongodb://localhost/casestatus').then(
+    () => { console.log('DB Connected'); },
+    (err) => { console.log('DB Connection Error' + err); }
+);
+var caseModel = mongoose.model('Case',
+    new mongoose.Schema(
+        {
+            caseNumber: String,
+            errHtml: String,
+            statusShortHtml: String,
+            statusShortText: String,
+            statusLongHtml: String,
+            statusLongText: String
+        }
+    )
+);
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -24,16 +32,31 @@ function pad(n, width, z) {
 
 getStatus = async (caseNum) => {
     return new Promise((resolve, reject) => {
-        rus.getStatus(caseNum, (err, statusObject) => {
+        rus.getStatus(caseNum, async (err, statusObject) => {
             if (err) {
                 console.error(err);
                 reject();
             }
+            console.warn(`Processed ${caseNum}`);
+            // console.log(statusObject);
+            // if (statusObject['statusLongText'].includes("I-765") || statusObject['statusLongText'].includes("ordered your new card") || statusObject['statusLongText'].includes("Card Was Delivered")) {
             if (statusObject['statusLongText'].includes("I-765") || statusObject['statusLongText'].includes("ordered your new card") || statusObject['statusLongText'].includes("Card Was Delivered")) {
-                caseList[caseNum] = statusObject;
-                console.log(caseList[caseNum]);
-                stream.write('"' + caseNum + '" : \n' + JSON.stringify(caseList[caseNum]) + ",\n");
+                console.info("Success");
+                console.log(statusObject);
+                // statusObject.statusLongHtml = "";
+                // statusObject.statusLongText = "";
+                // statusObject.statusShortHtml = "";
+                // statusObject.statusShortText = "";
             }
+            await caseModel.deleteMany({caseNumber:caseNum}).exec();
+            var caseObj = await caseModel.create({
+                caseNumber: caseNum,
+                statusLongHtml: statusObject.statusLongHtml,
+                statusLongText: statusObject.statusLongText,
+                statusShortHtml: statusObject.statusShortHtml,
+                statusShortText: statusObject.statusShortText
+            });
+            // }
             resolve();
         });
     });
@@ -41,26 +64,28 @@ getStatus = async (caseNum) => {
 
 // stream.write("{");
 main = async () => {
+
+    var prefix = "WAC18901";
+    var startNum = 35000;
+    var endNum = 40000;
     var arr = []
     while (arr.length < 100) {
-        var fileContent = fs.readFileSync("./processedCaseList.txt");
         var randomnumber = Math.floor(Math.random() * (endNum - startNum)) + 1;
-        randomnumber = pad(randomnumber, 5)
-        if (arr.indexOf(randomnumber) > -1 || fileContent.includes(prefix + randomnumber)) {
-            console.log(`${prefix + randomnumber} present at ${arr.indexOf(randomnumber)}. Continuing...`);
+        randomnumber = pad(startNum + randomnumber, 5);
+        let caseCount = (await caseModel.find({ caseNumber: prefix + randomnumber }).limit(1).count());
+        if (caseCount > 0) {
+            console.log(`${prefix + randomnumber} present in Case List. Continuing...`);
             continue;
         }
         arr[arr.length] = randomnumber;
     }
+    console.log(arr);
     for (i = 0; i < arr.length; i++) {
         await sleep(100);
-        caseNum = prefix + (startNum + (Number(arr[i]) - 1));
-        console.log(`Processing ${caseNum}`);
-        listStream.write(caseNum + "\n");
-        await getStatus(caseNum);
+        caseNum = prefix + arr[i];
+        try { await getStatus(caseNum); } catch (e) { console.error(e); }
     };
-    // stream.write("}");
-    stream.end();
+    mongoose.disconnect();
     console.log("Finished");
 };
 
