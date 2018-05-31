@@ -66,7 +66,7 @@ getStatus = async (caseNum) => {
 main = async () => {
 
     var prefix = "WAC18901";
-    var startNum = 35000;
+    var startNum = 30000;
     var endNum = 40000;
     var arr = []
     while (arr.length < 100) {
@@ -81,7 +81,7 @@ main = async () => {
     }
     console.log(arr);
     for (i = 0; i < arr.length; i++) {
-        await sleep(100);
+        // await sleep(100);
         caseNum = prefix + arr[i];
         try { await getStatus(caseNum); } catch (e) { console.error(e); }
     };
