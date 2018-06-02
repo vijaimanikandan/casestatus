@@ -65,12 +65,27 @@ getReceivedCases = async () => {
             });
         });
     });
-    console.log(promises);
+    // console.log(promises);
     return Promise.all(promises);
 };
 
 app.get("/", async (req, res) => {
     await getReceivedCases();
+    await receivedCaseModel.aggregate([
+        {
+            $group:
+                {
+                    _id:
+                        {
+                            caseNumber: "$caseNumber",
+                            updatedDate: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } }
+                        },
+                    "doc": { "$last": "$$ROOT" }
+                }
+        },
+        { "$replaceRoot": { "newRoot": "$doc" } },
+        { "$out": "receivedcases" }
+    ]);
     console.log('Got Cases');
     var response = `<html>
     <head>
@@ -93,7 +108,8 @@ app.get("/", async (req, res) => {
     </div>
     <div class="container-fluid table-responsive">
     <table id="casesTable" class="table table-hover"><thead><tr><th>Case Number</th><th>Case Status</th></tr></thead><tbody>`;
-    await receivedCaseModel.find({}, function (err, cases) {
+    var findPromise = await receivedCaseModel.find({}, async function (err, cases) {
+        console.log("Got Records");
         cases.sort((a, b) => {
             // return a.caseNumber.localeCompare(b.caseNumber);
             return b.timestamp.getTime() - a.timestamp.getTime();
@@ -105,19 +121,27 @@ app.get("/", async (req, res) => {
                 // || (caseObj['statusLongText'].includes("Card Was Delivered") && !(caseObj['statusLongText'].includes("March") || caseObj['statusLongText'].includes("April")))
             );
         });
-        receivedCases = cases.reduce((accumulator, currentValue, currentIndex, array) => {
-            var dateString = currentValue['timestamp'].getFullYear() + "-" + (pad(currentValue['timestamp'].getMonth() + 1,2)) + "-" + pad(currentValue['timestamp'].getDate(),2)
-                + " " + pad(currentValue['timestamp'].getHours(),2) + ":" + pad(currentValue['timestamp'].getMinutes(),2) + ":" + pad(currentValue['timestamp'].getSeconds(),2);
+        receivedCases = await cases.reduce(async (previousPromise, currentValue, currentIndex, array) => {
+            accumulator = await previousPromise;
+            var dateString = currentValue['timestamp'].getFullYear() + "-" + (pad(currentValue['timestamp'].getMonth() + 1, 2)) + "-" + pad(currentValue['timestamp'].getDate(), 2)
+                + " " + pad(currentValue['timestamp'].getHours(), 2) + ":" + pad(currentValue['timestamp'].getMinutes(), 2) + ":" + pad(currentValue['timestamp'].getSeconds(), 2);
             if (currentValue['caseNumber'] in accumulator) {
-                accumulator[currentValue['caseNumber']] += ('<br/>' + ('<strong>'+dateString+'</strong>') + ' : ' + ('<i>'+currentValue['statusShortText']+'</i>') + ' - ' + currentValue['statusLongText']);
+                if(!accumulator[currentValue['caseNumber']].includes(currentValue['statusShortText']))
+                    accumulator[currentValue['caseNumber']] += ('<div class="panel panel-default">' + ('<div class="panel-heading"><span class="badge">' + dateString + '</span>') + ' <span class="glyphicon glyphicon-star"></span> ' + ('<span class="label label-primary">' + currentValue['statusShortText'] + '</span>') + '</div> <div class="panel-body">' + currentValue['statusLongText'] + '</div></div>');
+                else
+                    accumulator[currentValue['caseNumber']] += ('<div class="panel panel-default">' + ('<div class="panel-heading"><span class="badge">' + dateString + '</span>') + ' <span class="glyphicon glyphicon-star-empty"></span> ' + ('<span class="label label-default">' + currentValue['statusShortText'] + '</span>') + '</div> <div class="panel-body">' + currentValue['statusLongText'] + '</div></div>');
             } else {
-                accumulator[currentValue['caseNumber']] = (('<strong>'+dateString+'</strong>') + ' : ' + ('<i>'+currentValue['statusShortText']+'</i>') + ' - ' + currentValue['statusLongText']);
+                accumulator[currentValue['caseNumber']] = (('<div class="panel panel-default"><div class="panel-heading"><span class="badge">' + dateString + '</span>') + ' <span class="glyphicon glyphicon-home"></span> ' + ('<span class="label label-default">' + currentValue['statusShortText'] + '</span>') + '</div> <div class="panel-body">' + currentValue['statusLongText'] + '</div></div>');
             }
             return accumulator;
-        }, {});
-        Object.keys(receivedCases).forEach(function (key, index, array) {
-            response += `<tr><td>${key}</td><td>${receivedCases[key]}</td></tr>`
+        }, Promise.resolve({}));
+        console.log("Reduced");
+        promises = Object.keys(receivedCases).map(async function (key, index, array) {
+            caseNumberBadge=`<button class="btn btn-primary" type="button">${key} <span class="badge">${receivedCases[key].split(`<div class="panel panel-default">`).length-1}</span></button>`
+            response += `<tr><td style="vertical-align: middle;text-align:center">${caseNumberBadge}</td><td>${receivedCases[key]}</td></tr>`
         });
+        await Promise.all(promises);
+        console.log('Response Constructed');
         response += `</tbody></table></div>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
         <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
@@ -130,8 +154,9 @@ app.get("/", async (req, res) => {
             });
         </script>`;
         response += `</body></html>`;
-    })
-        .exec();
+    }).exec();
+    await findPromise;
+    console.log('Sending Response');
     res.send(response);
 });
 
