@@ -66,8 +66,8 @@ getStatus = async (caseNum) => {
 main = async () => {
 
     var prefix = "WAC18901";
-    var startNum = 30000;
-    var endNum = 40000;
+    var startNum = 40000;
+    var endNum = 50000;
     var arr = []
     while (arr.length < 100) {
         var randomnumber = Math.floor(Math.random() * (endNum - startNum)) + 1;
