@@ -73,6 +73,12 @@ app.get("/", async (req, res) => {
     await getReceivedCases();
     await receivedCaseModel.aggregate([
         {
+            $sort:
+            {
+                caseNumber: 1, updatedDate: -1
+            }
+        },
+        {
             $group:
                 {
                     _id:
