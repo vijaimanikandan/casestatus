@@ -84,7 +84,7 @@ app.get("/", async (req, res) => {
                     _id:
                         {
                             caseNumber: "$caseNumber",
-                            updatedDate: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } }
+                            updatedDate: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp", timezone: "America/Los_Angeles" } }
                         },
                     "doc": { "$last": "$$ROOT" }
                 }
